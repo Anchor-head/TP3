@@ -1,13 +1,6 @@
 # ******************************************************************************
 # INF7370 Apprentissage automatique 
 # Travail pratique 3
-# ===========================================================================
-
-# Dans ce script, on �value l'autoencodeur entrain� dans 1_Modele.py sur les donn�es tests.
-# On charge le mod�le en m�moire puis on charge les images tests en m�moire
-# 1) On �value la qualit� des images reconstruites par l'autoencodeur
-# 2) On �value avec une tache de classification la qualit� de l'embedding
-# 3) On visualise l'embedding en 2 dimensions avec un scatter plot
 
 # ==========================================
 # ======CHARGEMENT DES LIBRAIRIES===========
@@ -50,7 +43,8 @@ number_images = 600
 number_images_class_0 = 300
 number_images_class_1 = 300
 labels = np.array([0] * number_images_class_0 + [1] * number_images_class_1)
-image_scale = 64
+
+image_scale = 256
 images_color_mode = "rgb"
 
 # ==========================================
@@ -102,9 +96,9 @@ plt.show()
 
 input_layer_index = 0
 output_layer_index = 6
-encoder = Model(autoencoder.layers[input_layer_index].input, autoencoder.layers[output_layer_index].output)
+encoder = Model(autoencoder.layers.input, autoencoder.layers[output_layer_index].output)
 embedding = encoder.predict(x)
-embedding_fl = embedding.reshape((600,16*16*256))
+embedding_fl = embedding.reshape((600, 64 * 64 * 256))  # Flatten
 
 # ***********************************************
 #                  QUESTIONS
@@ -113,9 +107,9 @@ embedding_fl = embedding.reshape((600,16*16*256))
 scaler = StandardScaler()
 embedding_nor = scaler.fit_transform(embedding_fl)
 
-# ***********************************************
-#                  QUESTIONS
-# ***********************************************
+# ==========================================
+# ===============SVM========================
+# ==========================================
 
 svm = SVC(kernel='linear', probability=True, random_state=0, C=1)
 x_train, x_test, y_train, y_test = train_test_split(embedding_nor, labels, test_size=0.20)
