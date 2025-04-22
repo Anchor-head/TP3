@@ -1,5 +1,4 @@
-# ******************************************************************************
-# INF7370 Apprentissage automatique 
+# INF7370 Apprentissage automatique
 # Travail pratique 3
 
 # ==========================================
@@ -7,6 +6,8 @@
 # ==========================================
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import matplotlib
+matplotlib.use('Agg')  # Important pour les serveurs sans interface graphique
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
@@ -17,20 +18,20 @@ from sklearn.metrics import f1_score, accuracy_score
 from sklearn.svm import SVC
 from sklearn.manifold import TSNE
 from sklearn.model_selection import train_test_split
+from sklearn.decomposition import PCA
+import os
 
 # ==========================================
 # ===============GPU SETUP==================
 # ==========================================
-'''
-config = tf.compat.v1.ConfigProto(device_count={'GPU': 2, 'CPU': 4})
-sess = tf.compat.v1.Session(config=config)
-tf.compat.v1.keras.backend.set_session(sess)
-'''
+
+#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  #Philip j'ai desactivé mon GPU ici
+
 # ==========================================
-# ==================MOD�LE==================
+# ==================MODÈLE==================
 # ==========================================
 
-model_path = "Model.keras"
+model_path = "Model1.keras"
 autoencoder = load_model(model_path)
 
 # ==========================================
@@ -39,9 +40,11 @@ autoencoder = load_model(model_path)
 
 mainDataPath = "donnees/"
 datapath = mainDataPath + "test"
+
 number_images = 600
 number_images_class_0 = 300
 number_images_class_1 = 300
+
 labels = np.array([0] * number_images_class_0 + [1] * number_images_class_1)
 
 image_scale = 256
@@ -52,57 +55,60 @@ images_color_mode = "rgb"
 # ==========================================
 
 data_generator = ImageDataGenerator(rescale=1. / 255)
+
 generator = data_generator.flow_from_directory(
     datapath,
     color_mode=images_color_mode,
     target_size=(image_scale, image_scale),
     batch_size=number_images,
     class_mode=None,
-    shuffle=False)
+    shuffle=False
+)
 
-x = generator.__next__()
+x = next(generator)
 
-# ***********************************************
-#                  QUESTIONS
-# ***********************************************
+# ==========================================
+# ==========RECONSTRUCTION IMAGES===========
+# ==========================================
 
 reconst_images = autoencoder.predict(x)
-reconst_images *= 255
 
 fig = plt.figure(figsize=(4, 4))
+
 for i in range(2):
-    ax = plt.subplot(2, 2, i+1)
-    if i==0:
-       ax.set_title("Dauphin (orignale)")
-    else:
-       ax.set_title("Requin (orignale)")
-    plt.imshow(x[i*300,:,:,:])
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
+    ax = plt.subplot(2, 2, i + 1)
+    ax.set_title("Dauphin (originale)" if i == 0 else "Requin (originale)")
+    plt.imshow(x[i * 300])
+    ax.axis('off')
 
-    ax = plt.subplot(2, 2, i+3)
-    if i==0:
-       ax.set_title("Dauphin (reconstruite)")
-    else:
-       ax.set_title("Requin (reconstruite)")
-    plt.imshow(reconst_images[i*300])
-    ax.get_xaxis().set_visible(False)
-    ax.get_yaxis().set_visible(False)
-plt.show()
+    ax = plt.subplot(2, 2, i + 3)
+    ax.set_title("Dauphin (reconstruite)" if i == 0 else "Requin (reconstruite)")
+    plt.imshow(reconst_images[i * 300])
+    ax.axis('off')
 
-# ***********************************************
-#                  QUESTIONS
-# ***********************************************
+plt.tight_layout()
+plt.savefig("images_reconstruites.png")
+print("L'image des reconstructions a été sauvegardée sous le nom 'images_reconstruites.png'")
 
-input_layer_index = 0
-output_layer_index = 6
-encoder = Model(autoencoder.layers.input, autoencoder.layers[output_layer_index].output)
+# ==========================================
+# ==========ENCODEUR========================
+# ==========================================
+
+# Affiche la structure du modèle
+autoencoder.summary()
+
+output_layer_index=6
+# Définir le modèle encodeur correctement
+encoder_input = autoencoder.input
+encoder_output = autoencoder.layers[output_layer_index].output
+encoder = Model(encoder_input, encoder_output)
+
 embedding = encoder.predict(x)
 embedding_fl = embedding.reshape((600, 64 * 64 * 256))  # Flatten
 
-# ***********************************************
-#                  QUESTIONS
-# ***********************************************
+# ==========================================
+# ======NORMALISATION EMBEDDING=============
+# ==========================================
 
 scaler = StandardScaler()
 embedding_nor = scaler.fit_transform(embedding_fl)
@@ -116,19 +122,26 @@ x_train, x_test, y_train, y_test = train_test_split(embedding_nor, labels, test_
 svm_trained = svm.fit(x_train, y_train)
 y_svm = svm.predict(x_test)
 
-print("F1-Macro =", f1_score(y_test, y_svm, average='macro'))
-print("F1-Micro =", f1_score(y_test, y_svm, average='micro'))
-print("Accuracy =", accuracy_score(y_test, y_svm))
+print("Accuracy = ", accuracy_score(y_test, y_svm))
 
-# ***********************************************
-#                  QUESTIONS
-# ***********************************************
+# ==========================================
+# ================TSNE======================
+# ==========================================
 
+# Réduction préalable par PCA à 50 dimensions
+print(" Réduction de dimension avec PCA...")
+pca = PCA(n_components=50)
+embedding_pca = pca.fit_transform(embedding_fl)
+
+# Ensuite t-SNE
+print(" Application de t-SNE sur les données réduites...")
 tsne = TSNE(n_components=2, init='pca', random_state=0)
-embedding_tsne = tsne.fit_transform(embedding_fl)
+embedding_tsne = tsne.fit_transform(embedding_pca)
 
 plt.figure(figsize=(6, 6))
-plt.scatter(embedding_tsne[:, 0], embedding_tsne[:, 1], c=labels, cmap='viridis')
+plt.scatter(embedding_tsne[:, 0], embedding_tsne[:, 1], c=labels)
 plt.colorbar()
-plt.title("Visualisation TSNE de l'embedding")
-plt.show()
+plt.title("t-SNE projection des embeddings")
+plt.tight_layout()
+plt.savefig("tsne_projection.png")
+print(" t-SNE sauvegardé sous le nom 'tsne_projection.png'")
