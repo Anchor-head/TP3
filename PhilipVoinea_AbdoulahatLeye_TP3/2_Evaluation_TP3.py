@@ -1,6 +1,7 @@
-# ***************************************************************************
-# INF7370 Apprentissage automatique 
+# INF7370 Apprentissage automatique
 # Travail pratique 3
+# Abdoulahat Leye LEYA21309606
+# Philip Voinea VOIP85020100
 # Évaluation du modèle Autoencodeur
 # ***************************************************************************
 
@@ -15,7 +16,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.svm import SVC
 from sklearn.manifold import TSNE
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.decomposition import PCA
 import os
 
@@ -27,7 +28,7 @@ import os
 # ==========================================
 # ==================MODÈLE==================
 # ==========================================
-model_path = "Model1.keras"
+model_path = "Model.keras"
 autoencoder = load_model(model_path)
 
 # ==========================================
@@ -40,9 +41,10 @@ number_images = 600
 number_images_class_0 = 300
 number_images_class_1 = 300
 
-labels = np.array([0] * number_images_class_0 + [1] * number_images_class_1)
+labels = np.array([0] * number_images_class_0 +
+                  [1] * number_images_class_1)
 
-image_scale = 256
+image_scale = 128
 images_color_mode = "rgb"
 
 # ==========================================
@@ -77,6 +79,7 @@ for i in range(2):
     ax.axis('off')
 
 plt.tight_layout()
+plt.show()
 plt.savefig("images_reconstruites.png")
 print(" Image des reconstructions sauvegardée sous 'images_reconstruites.png'")
 
@@ -84,8 +87,9 @@ print(" Image des reconstructions sauvegardée sous 'images_reconstruites.png'")
 # 3) Définir un modèle "encoder" qui est formé de la partie encodeur
 # ***********************************************
 autoencoder.summary()
+embedding_layer=12
 encoder_input = autoencoder.input
-encoder_output = autoencoder.get_layer('max_pooling2d_1').output
+encoder_output = autoencoder.layers[embedding_layer].output
 encoder = Model(encoder_input, encoder_output)
 embedding = encoder.predict(x)
 embedding_fl = embedding.reshape((number_images, -1))  # Flatten
@@ -96,24 +100,28 @@ embedding_fl = embedding.reshape((number_images, -1))  # Flatten
 scaler = StandardScaler()
 embedding_nor = scaler.fit_transform(embedding_fl)
 
-# ***********************************************
-# 5) Appliquer un SVM Linéaire sur les images originales (avant encodage)
-# ***********************************************
-x_flat = x.reshape((number_images, -1))
-svm_img = SVC(kernel='linear', probability=True, random_state=0, C=1)
-x_train_img, x_test_img, y_train_img, y_test_img = train_test_split(x_flat, labels, test_size=0.20)
-svm_img.fit(x_train_img, y_train_img)
-y_pred_img = svm_img.predict(x_test_img)
-print(" Accuracy (SVM sur images originales) =", accuracy_score(y_test_img, y_pred_img))
+# 5) Appliquer un SVM Linéaire sur les images originales (avant l'encodage par le modèle)
+# Entrainer le modèle avec le cross-validation
+# Afficher la métrique suivante :
+#    - Accuracy
+x_flat = x.reshape((number_images, -1))  # Applatir les images
+
+svm_img_cv = SVC(kernel='linear', random_state=0, C=1)
+
+print(" Validation croisée en cours sur les images originales...")
+scores_img = cross_val_score(svm_img_cv, x_flat, labels, cv=5, scoring='accuracy')
+
+print(" Accuracy moyenne (cross-validation sur images originales) =", round(np.mean(scores_img), 4))
+print(" Scores pour chaque fold =", scores_img)
 
 # ***********************************************
-# 6) Appliquer un SVC Linéaire sur le flattened embedding normalisé
+# 6) Appliquer un SVC Linéaire avec validation croisée sur le embedding normalisé
 # ***********************************************
-svm_emb = SVC(kernel='linear', probability=True, random_state=0, C=1)
-x_train_emb, x_test_emb, y_train_emb, y_test_emb = train_test_split(embedding_nor, labels, test_size=0.20)
-svm_emb.fit(x_train_emb, y_train_emb)
-y_pred_emb = svm_emb.predict(x_test_emb)
-print(" Accuracy (SVM sur embedding) =", accuracy_score(y_test_emb, y_pred_emb))
+svm_cv = SVC(kernel='linear', random_state=0, C=1)
+print(" Validation croisée en cours sur l'embedding...")
+scores = cross_val_score(svm_cv, embedding_nor, labels, cv=5, scoring='accuracy')
+print(" Accuracy moyenne (cross-validation 5-fold) =", round(np.mean(scores), 4))
+print(" Scores pour chaque fold =", scores)
 
 # ***********************************************
 # 7) Appliquer TSNE sur le flattened embedding et l'afficher en 2D
@@ -123,9 +131,13 @@ tsne = TSNE(n_components=2, init='pca', random_state=0)
 embedding_tsne = tsne.fit_transform(embedding_fl)
 
 plt.figure(figsize=(6, 6))
-plt.scatter(embedding_tsne[:, 0], embedding_tsne[:, 1], c=labels)
-plt.colorbar()
+scatter=plt.scatter(embedding_tsne[:, 0], embedding_tsne[:, 1], c=labels)
+plt.legend(
+    handles=scatter.legend_elements()[0],
+    labels=["Dauphin", "Requin"],
+)
 plt.title("t-SNE projection des embeddings")
 plt.tight_layout()
+plt.show()
 plt.savefig("tsne_projection.png")
 print(" t-SNE sauvegardé sous 'tsne_projection.png'")

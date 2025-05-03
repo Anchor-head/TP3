@@ -1,24 +1,22 @@
 # -*- coding: utf-8 -*-
 # ******************************************************************************
-# INF7370 Apprentissage automatique 
+# INF7370 Apprentissage automatique
 # Travail pratique 3
+# Abdoulahat Leye LEYA21309606
+# Philip Voinea VOIP85020100
+# Entrainement du modèle Autoencodeur
 # ===========================================================================
 
 # #===========================================================================
-# Ce mod�le est un Autoencodeur Convolutif entrain� sur l'ensemble de donn�es MNIST afin d'encoder et reconstruire les images des chiffres 2 et 7.
-# MNIST est une base de donn�es contenant des chiffres entre 0 et 9 �crits � la main en noire et blanc de taille 28x28 pixels
-# Pour des fins d'illustration, nous avons pris seulement deux chiffres 2 et 7
+# Ce mod�le est un Autoencodeur Convolutif entrain� sur l'ensemble de donn�es de dauphins et de requins.
+# Les images sont de couleur et de tailles variables avec un max de 256x256 pixels.
 #
 # Donn�es:
 # ------------------------------------------------
-# entrainement : classe '2': 1 000 images | classe '7': images 1 000 images
-# validation   : classe '2':   200 images | classe '7': images   200 images
-# test         : classe '2':   200 images | classe '7': images   200 images
+# entrainement : classe 'dauphin': 1440 images | classe 'requin': images 1440 images
+# validation   : classe 'dauphin':   360 images | classe 'requin': images   360 images
+# test         : classe 'dauphin':   300 images | classe 'requin': images   300 images
 # ------------------------------------------------
-
-# >>> Ce code fonctionne sur MNIST.
-# >>> Vous devez donc intervenir sur ce code afin de l'adapter aux donn�es du TP3.
-# >>> � cette fin rep�rer les section QUESTION et ins�rer votre code et modification � ces endroits
 
 # ==========================================
 # ======CHARGEMENT DES LIBRAIRIES===========
@@ -63,11 +61,7 @@ import time
 #sess = tf.compat.v1.Session(config=config)
 #gpus = tf.config.list_physical_devices('GPU')
 #for gpu in gpus:
- #   tf.config.experimental.set_memory_growth(gpu, True)
-'''
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-'''
+#   tf.config.experimental.set_memory_growth(gpu, True)
 
 
 # ==========================================
@@ -101,12 +95,12 @@ validationPath = mainDataPath + "entrainement"
 model_path = "Model.keras"
 
 # Le nombre d'images d'entrainement
-training_ds_size = 2880  # total 2000 (1000 classe: 2 et 1000 classe: 7)
-validation_ds_size = 720  # total 400 (200 classe: 2 et 200 classe: 7)
+training_ds_size = 2880  # total 2880 (1440 classe: dauphin et 1440 classe: requin)
+validation_ds_size = 720  # total 720 (360 classe: dauphin et 360 classe: requin), soit 20% des données d'entrainement
 
 
 # Configuration des  images
-image_scale = 64  # la taille des images
+image_scale = 128  # nous avons remarqué que mettre 256 comme taille pour accommoder les plus grosses images améliore le accuracy négligiblement mais alourdi beaucoup le modèle
 image_channels = 3  # le nombre de canaux de couleurs (1: pour les images noir et blanc; 3 pour les images en couleurs (rouge vert bleu) )
 images_color_mode = "rgb"  # grayscale pour les image noir et blanc; rgb pour les images en couleurs
 image_shape = (image_scale, image_scale,
@@ -135,26 +129,38 @@ input_layer = Input(shape=image_shape)
 
 # Partie d'encodage (qui extrait les features des images et les encode)
 def encoder(input):
-    x = Conv2D(128, (3, 3), padding='same')(input)
-    x = Activation('relu')(x)
-    x = MaxPooling2D((2, 2), padding='same')(x)
-    x = Conv2D(256, (3, 3), padding='same')(x)
-    x = Activation('relu')(x)
-    encoded = MaxPooling2D((2, 2), padding='same')(x)
-    return encoded
+  x = Conv2D(128, (3, 3), padding='same')(input)
+  x = Activation('relu')(x)
+  x = MaxPooling2D((2, 2), padding='same')(x)
+  x = Conv2D(256, (3, 3), padding='same')(x)
+  x = Activation('relu')(x)
+  x = MaxPooling2D((2, 2), padding='same')(x)
+  x = Conv2D(512, (3, 3), padding='same')(x)
+  x = Activation('relu')(x)
+  x = MaxPooling2D((2, 2), padding='same')(x)
+  x = Conv2D(1024, (3, 3), padding='same')(x)
+  x = Activation('relu')(x)
+  encoded = MaxPooling2D((2, 2), padding='same')(x)
+  return encoded
 
 
 # Partie de d�codage (qui reconstruit les images � partir de leur embedding ou la sortie de l'encodeur)
 def decoder(encoded):
-    x = Conv2D(256, (3, 3), padding='same')(encoded)
-    x = Activation('relu')(x)
-    x = UpSampling2D((2, 2))(x)
-    x = Conv2D(128, (3, 3), padding='same')(x)
-    x = Activation('relu')(x)
-    x = UpSampling2D((2, 2))(x)
-    x = Conv2D(image_channels, (3, 3), padding='same')(x)
-    decoded = Activation('sigmoid')(x)
-    return decoded
+  x = Conv2D(1024, (3, 3), padding='same')(encoded)
+  x = Activation('relu')(x)
+  x = UpSampling2D((2, 2))(x)
+  x = Conv2D(512, (3, 3), padding='same')(x)
+  x = Activation('relu')(x)
+  x = UpSampling2D((2, 2))(x)
+  x = Conv2D(256, (3, 3), padding='same')(x)
+  x = Activation('relu')(x)
+  x = UpSampling2D((2, 2))(x)
+  x = Conv2D(128, (3, 3), padding='same')(x)
+  x = Activation('relu')(x)
+  x = UpSampling2D((2, 2))(x)
+  x = Conv2D(image_channels, (3, 3), padding='same')(x)
+  decoded = Activation('sigmoid')(x)
+  return decoded
 
 
 # D�claration du mod�le:
@@ -166,7 +172,7 @@ model.compile(loss='mse', optimizer='adam', metrics=['mse'])
 # ==========CHARGEMENT DES IMAGES===========
 # ==========================================
 
-training_data_generator = ImageDataGenerator(rescale=1. / 255)
+training_data_generator = ImageDataGenerator(rescale=1. / 255,)
 validation_data_generator = ImageDataGenerator(rescale=1. / 255)
 
 training_generator = training_data_generator.flow_from_directory(
