@@ -68,6 +68,8 @@ Accuracy du SVM sur les images originales : 59%
 
 ## 📋 Conclusion
 
-Les difficultés quant au choix de l’architecture sont discutées dans la section « Justification du choix de l’architecture » de la première section.
+Les difficultés quant au choix de l’architecture sont discutées dans la sous-section « Justification du choix de l’architecture » de la section "Montage de l'architecture et entrainement du modèle".
 
-Je pourrais davantage améliorer le modèle en choisissant plus judicieusement les valeurs l1 et l2 et en expérimentant avec différentes architectures pour les couches de convolution.
+Notre limitation de temps et de ressources ne nous a pas permis d'explorer certaines avenues d'amélioration du modèle, dont celles-ci:
+- Choisir plus judicieusement (par le biais d'un grid search?) les paramètres de la régularization l1 et l2
+- Expérimenter avec différentes architectures quant aux couches de convolution
